@@ -1,17 +1,46 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Ambulance, Building2 } from "lucide-react";
+import { authApi } from "@/api";
 
 type AccountType = "ems" | "hospital";
 
 const LoginPage = () => {
+    const navigate = useNavigate();
     const [accountType, setAccountType] = useState<AccountType>("ems");
-    const [form, setForm] = useState({ id: "", password: "" });
+    const [form, setForm] = useState({ email: "", password: "" });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.log(`${accountType} Login:`, form);
+        setError(null);
+        setIsLoading(true);
+
+        try {
+            const response = await authApi.login({
+                email: form.email,
+                password: form.password,
+            });
+
+            // 사용자 정보 저장
+            localStorage.setItem("user_id", response.user_id);
+            localStorage.setItem("user_type", response.user_type);
+            localStorage.setItem("user_name", response.user_name);
+
+            // 사용자 타입에 따라 라우팅
+            if (response.user_type === "hospital") {
+                navigate("/hospital/dashboard");
+            } else {
+                navigate("/ems/dispatch");
+            }
+        } catch (err) {
+            setError("Login failed. Please check your email and password.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -57,15 +86,21 @@ const LoginPage = () => {
 
                     {/* Login Form */}
                     <form onSubmit={handleLogin} className="space-y-4">
+                        {error && (
+                            <div className="p-3 text-sm text-red-600 bg-red-50 rounded-xl">
+                                {error}
+                            </div>
+                        )}
                         <div>
                             <Input
-                                type="text"
-                                placeholder="Username"
-                                value={form.id}
+                                type="email"
+                                placeholder="Email"
+                                value={form.email}
                                 onChange={(e) =>
-                                    setForm({ ...form, id: e.target.value })
+                                    setForm({ ...form, email: e.target.value })
                                 }
                                 className="h-14 px-4 text-base bg-slate-50 border-0 rounded-xl placeholder:text-slate-400 focus:bg-slate-100 focus:ring-2 focus:ring-blue-500"
+                                disabled={isLoading}
                             />
                         </div>
                         <div>
@@ -80,14 +115,16 @@ const LoginPage = () => {
                                     })
                                 }
                                 className="h-14 px-4 text-base bg-slate-50 border-0 rounded-xl placeholder:text-slate-400 focus:bg-slate-100 focus:ring-2 focus:ring-blue-500"
+                                disabled={isLoading}
                             />
                         </div>
 
                         <Button
                             type="submit"
-                            className="w-full h-14 text-base font-semibold bg-blue-500 hover:bg-blue-600 rounded-xl mt-6"
+                            className="w-full h-14 text-base font-semibold bg-blue-500 hover:bg-blue-600 rounded-xl mt-6 disabled:opacity-50"
+                            disabled={isLoading}
                         >
-                            Sign In
+                            {isLoading ? "Signing In..." : "Sign In"}
                         </Button>
                     </form>
 
