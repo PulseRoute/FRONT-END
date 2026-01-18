@@ -45,6 +45,8 @@ export interface MatchedHospitalSchema {
   hospital_id: string;
   name: string;
   address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   ml_score?: number | null;
   distance_km?: number | null;
   estimated_time_minutes?: number | null;

@@ -16,7 +16,7 @@ const Header = () => {
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="gap-2 text-white hover:bg-white/10"
+                        className="gap-2 text-white hover:bg-white/10 hover:text-white transition-all duration-300"
                     >
                         <User className="size-4" />
                         <span>Login</span>

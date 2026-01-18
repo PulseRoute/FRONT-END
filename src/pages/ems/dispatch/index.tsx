@@ -2,11 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, MapPin, Clock, Phone, ChevronRight, AlertCircle, Navigation, TestTube2, Loader2 } from "lucide-react";
+import { Search, MapPin, Clock, ChevronRight, AlertCircle, Navigation, TestTube2, Loader2, Building2 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { patientApi, type PatientResponse } from "@/api";
+import { patientApi, type PatientResponse, type MatchedHospitalSchema } from "@/api";
 
 // Test location for development (San Francisco)
 const TEST_LOCATION = { lat: 37.7749, lng: -122.4194 };
@@ -33,6 +33,28 @@ const currentLocationIcon = L.divIcon({
     iconSize: [20, 20],
     iconAnchor: [10, 10],
 });
+
+// Custom icon for hospitals (green marker)
+const hospitalIcon = L.divIcon({
+    className: "hospital-marker",
+    html: `<div style="
+        width: 32px;
+        height: 32px;
+        background: #10b981;
+        border: 3px solid white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 14px;
+    ">H</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+});
+
 
 // Map controller component for GPS functionality
 const LocationControl = ({
@@ -226,6 +248,12 @@ const DispatchPage = () => {
         setMapCenter([TEST_LOCATION.lat, TEST_LOCATION.lng]);
     };
 
+    const handleHospitalClick = (hospital: MatchedHospitalSchema) => {
+        if (hospital.latitude != null && hospital.longitude != null) {
+            setMapCenter([hospital.latitude, hospital.longitude]);
+        }
+    };
+
     return (
         <div className="max-w-6xl">
             <div className="mb-8">
@@ -413,10 +441,10 @@ const DispatchPage = () => {
                     </form>
                 </div>
             ) : (
-                <div className="grid grid-cols-5 gap-6">
+                <div className="grid grid-cols-5 gap-6 items-start">
                     {/* Hospital List */}
-                    <div className="col-span-2 space-y-3">
-                        <div className="flex items-center justify-between mb-2">
+                    <div className="col-span-2">
+                        <div className="flex items-center justify-between mb-3">
                             <h2 className="font-semibold text-slate-900">Recommended</h2>
                             <button
                                 onClick={() => setStep("input")}
@@ -426,11 +454,13 @@ const DispatchPage = () => {
                             </button>
                         </div>
 
-                        {registeredPatient?.matched_hospitals && registeredPatient.matched_hospitals.length > 0 ? (
-                            registeredPatient.matched_hospitals.map((hospital) => (
+                        <div className="max-h-[700px] overflow-y-auto space-y-3 pr-2">
+                            {registeredPatient?.matched_hospitals && registeredPatient.matched_hospitals.length > 0 ? (
+                                registeredPatient.matched_hospitals.map((hospital) => (
                                 <div
                                     key={hospital.hospital_id}
-                                    className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-shadow"
+                                    onClick={() => handleHospitalClick(hospital)}
+                                    className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer"
                                 >
                                     <div className="flex items-start justify-between mb-3">
                                         <div>
@@ -439,7 +469,7 @@ const DispatchPage = () => {
                                         </div>
                                         {hospital.ml_score && (
                                             <span className="text-sm font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
-                                                {Math.round(hospital.ml_score / 2000)}%
+                                                {(hospital.ml_score / 1000).toFixed(1)}
                                             </span>
                                         )}
                                     </div>
@@ -483,7 +513,10 @@ const DispatchPage = () => {
                                     <div className="flex gap-2">
                                         <Button
                                             className="flex-1 h-10 bg-slate-900 hover:bg-slate-800 rounded-xl text-sm"
-                                            onClick={() => handleSendRequest(hospital.hospital_id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSendRequest(hospital.hospital_id);
+                                            }}
                                         >
                                             Send Request
                                             <ChevronRight className="size-4 ml-1" />
@@ -493,7 +526,8 @@ const DispatchPage = () => {
                                                 variant="outline"
                                                 size="icon"
                                                 className="h-10 w-10 rounded-xl border-slate-200"
-                                                onClick={() => {
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
                                                     const destination = encodeURIComponent(hospital.address || hospital.name);
                                                     const origin = currentLocation
                                                         ? `${currentLocation.lat},${currentLocation.lng}`
@@ -510,27 +544,30 @@ const DispatchPage = () => {
                                         )}
                                     </div>
                                 </div>
-                            ))
-                        ) : (
-                            <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
-                                <p className="text-slate-500">No hospitals found. Please try again.</p>
-                            </div>
-                        )}
+                                ))
+                            ) : (
+                                <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
+                                    <p className="text-slate-500">No hospitals found. Please try again.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Map */}
-                    <div className="col-span-3 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative">
+                    <div className="col-span-3 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative h-[700px]">
                         <MapContainer
                             center={currentLocation ? [currentLocation.lat, currentLocation.lng] : [37.7649, -122.4394]}
                             zoom={13}
-                            className="h-full min-h-[600px]"
-                            style={{ height: "100%", minHeight: "600px" }}
+                            className="h-full"
+                            style={{ height: "100%" }}
                         >
                             <TileLayer
                                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                             />
                             <MapUpdater center={mapCenter} />
+
+                            {/* Current Location Marker */}
                             {currentLocation && (
                                 <Marker
                                     position={[currentLocation.lat, currentLocation.lng]}
@@ -546,6 +583,63 @@ const DispatchPage = () => {
                                     </Popup>
                                 </Marker>
                             )}
+
+                            {/* Hospital Markers */}
+                            {registeredPatient?.matched_hospitals?.map((hospital) => {
+                                if (hospital.latitude == null || hospital.longitude == null) return null;
+
+                                return (
+                                    <Marker
+                                        key={hospital.hospital_id}
+                                        position={[hospital.latitude, hospital.longitude]}
+                                        icon={hospitalIcon}
+                                        eventHandlers={{
+                                            click: () => handleHospitalClick(hospital),
+                                        }}
+                                    >
+                                        <Popup>
+                                            <div className="p-1 min-w-[200px]">
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                                        <Building2 className="size-4 text-emerald-600" />
+                                                        {hospital.name}
+                                                    </h3>
+                                                    {hospital.ml_score && (
+                                                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                                            {(hospital.ml_score / 1000).toFixed(1)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-slate-500 mb-2">{hospital.address}</p>
+                                                <div className="flex gap-2 text-xs">
+                                                    {hospital.distance_km && (
+                                                        <span className="text-slate-600">
+                                                            {hospital.distance_km.toFixed(1)} km
+                                                        </span>
+                                                    )}
+                                                    {hospital.estimated_time_minutes && (
+                                                        <span className="text-slate-600">
+                                                            {hospital.estimated_time_minutes} min
+                                                        </span>
+                                                    )}
+                                                    {hospital.total_beds && (
+                                                        <span className="text-emerald-600 font-medium">
+                                                            {hospital.total_beds} beds
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {hospital.has_trauma_center && (
+                                                    <div className="mt-2">
+                                                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">
+                                                            Trauma Center
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Popup>
+                                    </Marker>
+                                );
+                            })}
                         </MapContainer>
                         <LocationControl
                             onLocate={handleLocate}

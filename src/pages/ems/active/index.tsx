@@ -11,7 +11,6 @@ import {
     Navigation,
     Building2,
     AlertCircle,
-    Phone,
     CheckCircle2,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
@@ -40,47 +39,6 @@ const patientLocationIcon = L.divIcon({
     "></div>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10],
-});
-
-// Custom icon for hospitals
-const hospitalIcon = L.divIcon({
-    className: "hospital-marker",
-    html: `<div style="
-        width: 32px;
-        height: 32px;
-        background: #10b981;
-        border: 3px solid white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: bold;
-        font-size: 14px;
-    ">H</div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-});
-
-const unavailableHospitalIcon = L.divIcon({
-    className: "hospital-marker-unavailable",
-    html: `<div style="
-        width: 32px;
-        height: 32px;
-        background: #94a3b8;
-        border: 3px solid white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(148, 163, 184, 0.4);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: bold;
-        font-size: 14px;
-    ">H</div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
 });
 
 // Status configurations including 'searching' for when matching is pending
@@ -128,57 +86,6 @@ const severityConfig: Record<string, { bg: string; text: string }> = {
     Standard: { bg: "bg-slate-500", text: "text-white" },
 };
 
-// Mock nearby hospitals for map selection
-const nearbyHospitals = [
-    {
-        id: "hosp_001",
-        name: "서울대학교병원",
-        distance: 2.3,
-        eta: 8,
-        available: true,
-        lat: 37.5796,
-        lng: 126.999,
-        phone: "+82-2-2072-2114",
-        address: "서울 종로구 대학로 101",
-        availableBeds: 5,
-    },
-    {
-        id: "hosp_002",
-        name: "세브란스병원",
-        distance: 3.1,
-        eta: 12,
-        available: true,
-        lat: 37.5622,
-        lng: 126.941,
-        phone: "+82-2-2228-5800",
-        address: "서울 서대문구 연세로 50-1",
-        availableBeds: 3,
-    },
-    {
-        id: "hosp_003",
-        name: "삼성서울병원",
-        distance: 5.2,
-        eta: 18,
-        available: false,
-        lat: 37.4881,
-        lng: 127.085,
-        phone: "+82-2-3410-2114",
-        address: "서울 강남구 일원로 81",
-        availableBeds: 0,
-    },
-    {
-        id: "hosp_004",
-        name: "서울아산병원",
-        distance: 4.8,
-        eta: 15,
-        available: true,
-        lat: 37.5267,
-        lng: 127.108,
-        phone: "+82-2-3010-3114",
-        address: "서울 송파구 올림픽로43길 88",
-        availableBeds: 7,
-    },
-];
 
 // Component to handle map view changes
 const MapUpdater = ({ center }: { center: [number, number] | null }) => {
@@ -207,7 +114,7 @@ const MapModal = ({
     isRetrying,
 }: MapModalProps) => {
     const [selectedHospital, setSelectedHospital] = useState<string | null>(null);
-    const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
+    const [mapCenter] = useState<[number, number] | null>(null);
 
     if (!isOpen || !patient) return null;
 
@@ -216,9 +123,11 @@ const MapModal = ({
         patient.location.longitude,
     ];
 
-    const handleNavigate = (hospital: { lat: number; lng: number; name: string }) => {
+    const hospitals = patient.matched_hospitals || [];
+
+    const handleNavigate = (address: string, name: string) => {
         const origin = `${patient.location.latitude},${patient.location.longitude}`;
-        const destination = `${hospital.lat},${hospital.lng}`;
+        const destination = encodeURIComponent(address || name);
         const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
         window.open(url, "_blank");
     };
@@ -234,7 +143,7 @@ const MapModal = ({
                 <div className="flex items-center justify-between p-5 border-b">
                     <div>
                         <h2 className="text-lg font-semibold text-slate-900">
-                            병원 재매칭
+                            {hospitals.length > 0 ? "병원 선택" : "병원 재매칭"}
                         </h2>
                         <p className="text-sm text-slate-500">
                             {patient.name} · {patient.disease_code} · {patient.severity_code}
@@ -252,16 +161,28 @@ const MapModal = ({
                 <div className="flex h-[65vh]">
                     {/* Left: Hospital List */}
                     <div className="w-80 border-r overflow-y-auto p-4 space-y-4">
-                        {/* Alert */}
-                        <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-xl">
-                            <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
-                            <div className="text-sm">
-                                <p className="font-medium text-amber-800">자동 매칭 실패</p>
-                                <p className="text-amber-700 mt-1">
-                                    ML 서버 응답 없음 또는 병원 수용 불가
-                                </p>
+                        {/* Info */}
+                        {hospitals.length > 0 ? (
+                            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
+                                <AlertCircle className="size-5 text-blue-600 shrink-0 mt-0.5" />
+                                <div className="text-sm">
+                                    <p className="font-medium text-blue-800">추천 병원 목록</p>
+                                    <p className="text-blue-700 mt-1">
+                                        ML이 추천한 {hospitals.length}개의 병원이 있습니다
+                                    </p>
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-xl">
+                                <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+                                <div className="text-sm">
+                                    <p className="font-medium text-amber-800">매칭된 병원 없음</p>
+                                    <p className="text-amber-700 mt-1">
+                                        자동 재매칭을 시도하세요
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Retry Match Button */}
                         <Button
@@ -273,68 +194,63 @@ const MapModal = ({
                             {isRetrying ? "재매칭 중..." : "자동 재매칭 시도"}
                         </Button>
 
-                        <div className="relative py-2">
-                            <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-slate-200" />
-                            </div>
-                            <div className="relative flex justify-center">
-                                <span className="bg-white px-3 text-xs text-slate-500">
-                                    또는 수동 선택
-                                </span>
-                            </div>
-                        </div>
+                        {hospitals.length > 0 && (
+                            <>
+                                <div className="relative py-2">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-slate-200" />
+                                    </div>
+                                    <div className="relative flex justify-center">
+                                        <span className="bg-white px-3 text-xs text-slate-500">
+                                            추천 병원 선택
+                                        </span>
+                                    </div>
+                                </div>
 
-                        {/* Hospital List */}
-                        <div className="space-y-2">
-                            {nearbyHospitals.map((hospital) => (
-                                <button
-                                    key={hospital.id}
-                                    onClick={() => {
-                                        if (hospital.available) {
-                                            setSelectedHospital(hospital.id);
-                                            setMapCenter([hospital.lat, hospital.lng]);
-                                        }
-                                    }}
-                                    disabled={!hospital.available}
-                                    className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${
-                                        selectedHospital === hospital.id
-                                            ? "border-blue-500 bg-blue-50"
-                                            : hospital.available
-                                              ? "border-slate-200 hover:border-slate-300"
-                                              : "border-slate-100 bg-slate-50 opacity-60"
-                                    }`}
-                                >
-                                    <div
-                                        className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                                            hospital.available ? "bg-emerald-100" : "bg-slate-200"
-                                        }`}
-                                    >
-                                        <Building2
-                                            className={`size-4 ${
-                                                hospital.available
-                                                    ? "text-emerald-600"
-                                                    : "text-slate-400"
+                                {/* Hospital List */}
+                                <div className="space-y-2">
+                                    {hospitals.map((hospital) => (
+                                        <button
+                                            key={hospital.hospital_id}
+                                            onClick={() => setSelectedHospital(hospital.hospital_id)}
+                                            className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                                                selectedHospital === hospital.hospital_id
+                                                    ? "border-blue-500 bg-blue-50"
+                                                    : "border-slate-200 hover:border-slate-300"
                                             }`}
-                                        />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-slate-900 text-sm truncate">
-                                            {hospital.name}
-                                        </p>
-                                        <p className="text-xs text-slate-500 mt-0.5">
-                                            {hospital.distance}km · {hospital.eta}분
-                                        </p>
-                                        {hospital.available ? (
-                                            <p className="text-xs text-emerald-600 mt-0.5">
-                                                {hospital.availableBeds} beds available
-                                            </p>
-                                        ) : (
-                                            <p className="text-xs text-red-500 mt-0.5">수용 불가</p>
-                                        )}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
+                                        >
+                                            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-emerald-100">
+                                                <Building2 className="size-4 text-emerald-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-slate-900 text-sm truncate">
+                                                    {hospital.name}
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                    {hospital.distance_km ? `${hospital.distance_km.toFixed(1)}km` : "거리 정보 없음"}
+                                                    {hospital.estimated_time_minutes && ` · ${hospital.estimated_time_minutes}분`}
+                                                </p>
+                                                {hospital.total_beds && (
+                                                    <p className="text-xs text-emerald-600 mt-0.5">
+                                                        {hospital.total_beds} beds
+                                                    </p>
+                                                )}
+                                                {hospital.ml_score && (
+                                                    <p className="text-xs text-blue-600 mt-0.5">
+                                                        추천도: {(hospital.ml_score / 1000).toFixed(1)}
+                                                    </p>
+                                                )}
+                                                {hospital.has_trauma_center && (
+                                                    <span className="inline-block text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded mt-1">
+                                                        Trauma Center
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Right: Map */}
@@ -364,70 +280,35 @@ const MapModal = ({
                                     </div>
                                 </Popup>
                             </Marker>
+                        </MapContainer>
 
-                            {/* Hospital Markers */}
-                            {nearbyHospitals.map((hospital) => (
-                                <Marker
-                                    key={hospital.id}
-                                    position={[hospital.lat, hospital.lng]}
-                                    icon={hospital.available ? hospitalIcon : unavailableHospitalIcon}
-                                    eventHandlers={{
-                                        click: () => {
-                                            if (hospital.available) {
-                                                setSelectedHospital(hospital.id);
-                                            }
-                                        },
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="p-1 min-w-[180px]">
-                                            <h3 className="font-semibold text-slate-900">
-                                                {hospital.name}
-                                            </h3>
-                                            <p className="text-xs text-slate-500">{hospital.address}</p>
-                                            <div className="flex gap-2 mt-2 text-xs">
-                                                {hospital.available ? (
-                                                    <span className="text-emerald-600 font-medium">
-                                                        {hospital.availableBeds} beds
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-red-500 font-medium">
-                                                        수용 불가
-                                                    </span>
-                                                )}
-                                                <span className="text-slate-500">
-                                                    {hospital.eta}분
-                                                </span>
-                                            </div>
-                                            {hospital.available && (
-                                                <div className="flex gap-1 mt-2">
-                                                    <button
-                                                        onClick={() => setSelectedHospital(hospital.id)}
-                                                        className="flex-1 px-2 py-1 bg-slate-900 text-white rounded text-xs hover:bg-slate-800"
-                                                    >
-                                                        선택
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleNavigate(hospital)}
-                                                        className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
-                                                    >
-                                                        <Navigation className="size-3" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            window.location.href = `tel:${hospital.phone}`;
-                                                        }}
-                                                        className="px-2 py-1 bg-emerald-500 text-white rounded text-xs hover:bg-emerald-600"
-                                                    >
-                                                        <Phone className="size-3" />
-                                                    </button>
-                                                </div>
+                        {/* Selected Hospital Info */}
+                        {selectedHospital && (
+                            <div className="absolute bottom-4 left-4 right-4 bg-white rounded-xl p-4 shadow-lg border border-slate-200">
+                                {hospitals.find(h => h.hospital_id === selectedHospital) && (() => {
+                                    const hospital = hospitals.find(h => h.hospital_id === selectedHospital)!;
+                                    return (
+                                        <div>
+                                            <h4 className="font-semibold text-slate-900">{hospital.name}</h4>
+                                            <p className="text-sm text-slate-500 mt-1">{hospital.address || "주소 정보 없음"}</p>
+                                            {hospital.recommendation_reason && (
+                                                <p className="text-xs text-blue-600 mt-2">{hospital.recommendation_reason}</p>
+                                            )}
+                                            {hospital.address && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleNavigate(hospital.address!, hospital.name)}
+                                                    className="w-full mt-3 h-9 gap-2"
+                                                >
+                                                    <Navigation className="size-4" />
+                                                    구글 맵으로 네비게이션
+                                                </Button>
                                             )}
                                         </div>
-                                    </Popup>
-                                </Marker>
-                            ))}
-                        </MapContainer>
+                                    );
+                                })()}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -439,9 +320,10 @@ const MapModal = ({
                     <Button
                         onClick={() => selectedHospital && onSelectHospital(selectedHospital)}
                         disabled={!selectedHospital}
-                        className="flex-1 h-11 bg-slate-900 hover:bg-slate-800 rounded-xl"
+                        className="flex-1 h-11 bg-slate-900 hover:bg-slate-800 rounded-xl gap-2"
                     >
-                        선택한 병원으로 요청
+                        <Building2 className="size-4" />
+                        선택한 병원으로 요청 보내기
                     </Button>
                 </div>
             </div>
@@ -701,11 +583,32 @@ const ActiveCasesPage = () => {
     const handleSelectHospital = async (hospitalId: string) => {
         if (!selectedPatient) return;
 
-        // TODO: Implement manual hospital selection API
-        console.log("Manual hospital selection:", hospitalId, "for patient:", selectedPatient.id);
+        const hospital = selectedPatient.matched_hospitals?.find(h => h.hospital_id === hospitalId);
+        if (!hospital) return;
 
-        setIsMapModalOpen(false);
-        setSelectedPatient(null);
+        try {
+            await patientApi.createTransferRequest(selectedPatient.id, {
+                hospital_id: hospital.hospital_id,
+                hospital_name: hospital.name,
+                hospital_address: hospital.address || undefined,
+                ml_score: hospital.ml_score || undefined,
+                distance_km: hospital.distance_km || undefined,
+                estimated_time_minutes: hospital.estimated_time_minutes || undefined,
+                recommendation_reason: hospital.recommendation_reason || undefined,
+                total_beds: hospital.total_beds || undefined,
+                has_trauma_center: hospital.has_trauma_center || undefined,
+            });
+
+            // Refresh the active cases list
+            const response = await patientApi.getPatients();
+            setActiveCases(response.patients);
+
+            setIsMapModalOpen(false);
+            setSelectedPatient(null);
+        } catch (error) {
+            console.error("Failed to create transfer request:", error);
+            alert("병원 요청 생성에 실패했습니다. 다시 시도해주세요.");
+        }
     };
 
     const handleCompleteTransfer = async (patientId: string) => {
@@ -803,15 +706,28 @@ const ActiveCasesPage = () => {
                             </div>
 
                             <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
-                                {caseItem.status === "searching" && (
-                                    <Button
-                                        size="sm"
-                                        onClick={() => openRetryModal(caseItem)}
-                                        className="h-9 bg-purple-600 hover:bg-purple-700 rounded-lg gap-1.5"
-                                    >
-                                        <RefreshCw className="size-4" />
-                                        Retry Match
-                                    </Button>
+                                {/* Show retry/select buttons for searching or pending status */}
+                                {(caseItem.status === "searching" || caseItem.status === "pending") && (
+                                    <>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => openRetryModal(caseItem)}
+                                            className="h-9 bg-purple-600 hover:bg-purple-700 rounded-lg gap-1.5"
+                                        >
+                                            <RefreshCw className="size-4" />
+                                            Retry Match
+                                        </Button>
+                                        {caseItem.matched_hospitals && caseItem.matched_hospitals.length > 0 && (
+                                            <Button
+                                                size="sm"
+                                                onClick={() => openRetryModal(caseItem)}
+                                                className="h-9 bg-blue-600 hover:bg-blue-700 rounded-lg gap-1.5"
+                                            >
+                                                <Building2 className="size-4" />
+                                                Select Hospital
+                                            </Button>
+                                        )}
+                                    </>
                                 )}
 
                                 {caseItem.status === "accepted" && (
